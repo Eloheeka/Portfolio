@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "motion/react"
 import {
   Sun, Moon, Menu, X, ExternalLink, Github, Mail,
@@ -607,11 +607,15 @@ function ProjectCard({ project }: { project: typeof PROJECTS[0] }) {
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const WEB3FORMS_ACCESS_KEY = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || "9f597313-2b31-4dd4-bdeb-82106d33c59f"
+
   const [loading, setLoading] = useState(true)
   const [dark, setDark] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
   const [form, setForm] = useState({ name: "", email: "", message: "" })
   const [sent, setSent] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null)
 
   const activeSection = useScrollSpy(["home", "about", "projects", "contact"])
 
@@ -627,16 +631,36 @@ export default function App() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    const formData = new FormData()
-    formData.append("access_key", "9f597313-2b31-4dd4-bdeb-82106d33c59f")
-    formData.append("name", form.name)
-    formData.append("email", form.email)
-    formData.append("message", form.message)
+    const trimmedName = form.name.trim()
+    const trimmedEmail = form.email.trim()
+    const trimmedMessage = form.message.trim()
+
+    if (!trimmedName || !trimmedEmail || !trimmedMessage) {
+      setSubmitMessage("Please complete all fields before sending your message.")
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitMessage(null)
+
+    const payload = {
+      access_key: WEB3FORMS_ACCESS_KEY,
+      name: trimmedName,
+      email: trimmedEmail,
+      message: trimmedMessage,
+      subject: `New portfolio contact from ${trimmedName}`,
+      replyto: trimmedEmail,
+      from_name: trimmedName,
+    }
 
     try {
       const response = await fetch("https://api.web3forms.com/submit", {
         method: "POST",
-        body: formData,
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       })
 
       const result = await response.json()
@@ -644,10 +668,16 @@ export default function App() {
       if (result.success) {
         setSent(true)
         setForm({ name: "", email: "", message: "" })
-        setTimeout(() => setSent(false), 4000)
+        setSubmitMessage("Message sent successfully — I’ll reply to you soon.")
+        window.setTimeout(() => setSent(false), 4000)
+      } else {
+        setSubmitMessage(result.message || "Your message could not be sent right now. Please try again in a moment.")
       }
     } catch (error) {
       console.error("Contact form submission failed", error)
+      setSubmitMessage("Something went wrong while sending your message. Please email me directly at m.eloheeka12@gmail.com.")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -968,7 +998,8 @@ export default function App() {
                         onChange={e => setForm(prev => ({ ...prev, [field]: e.target.value }))}
                         placeholder={field === "email" ? "alex@example.com" : "Your name"}
                         required
-                        className="w-full px-4 py-3 rounded-xl f-mono text-sm dark:text-white text-gray-900 border dark:border-white/10 border-black/10 outline-none focus:border-cyan-400/55 transition-all duration-200 dark:placeholder-white/18 placeholder-gray-300"
+                        disabled={isSubmitting}
+                        className="w-full px-4 py-3 rounded-xl f-mono text-sm dark:text-white text-gray-900 border dark:border-white/10 border-black/10 outline-none focus:border-cyan-400/55 transition-all duration-200 dark:placeholder-white/18 placeholder-gray-300 disabled:opacity-70"
                         style={{ background: "var(--glass)", backdropFilter: "blur(10px)" }}
                       />
                     </div>
@@ -985,7 +1016,8 @@ export default function App() {
                     onChange={e => setForm(prev => ({ ...prev, message: e.target.value }))}
                     placeholder="Tell me about your project..."
                     required
-                    className="w-full px-4 py-3 rounded-xl f-mono text-sm dark:text-white text-gray-900 border dark:border-white/10 border-black/10 outline-none focus:border-cyan-400/55 transition-all duration-200 resize-none dark:placeholder-white/18 placeholder-gray-300"
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-3 rounded-xl f-mono text-sm dark:text-white text-gray-900 border dark:border-white/10 border-black/10 outline-none focus:border-cyan-400/55 transition-all duration-200 resize-none dark:placeholder-white/18 placeholder-gray-300 disabled:opacity-70"
                     style={{ background: "var(--glass)", backdropFilter: "blur(10px)" }}
                   />
                 </div>
@@ -993,23 +1025,25 @@ export default function App() {
                 <div className="flex items-center gap-4">
                   <button
                     type="submit"
-                    className="f-mono text-sm px-8 py-3.5 rounded-xl text-white font-medium transition-all duration-300 hover:scale-105 flex items-center gap-2"
+                    disabled={isSubmitting}
+                    className="f-mono text-sm px-8 py-3.5 rounded-xl text-white font-medium transition-all duration-300 hover:scale-105 flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-70"
                     style={{
                       background: "linear-gradient(135deg, #0891b2 0%, #7c3aed 100%)",
                       boxShadow: "0 0 28px rgba(0,212,255,0.22), 0 4px 20px rgba(0,0,0,0.25)",
                     }}
                   >
                     <Send size={14} />
-                    Send Message
+                    {isSubmitting ? "Sending..." : "Send Message"}
                   </button>
 
-                  {sent && (
+                  {submitMessage && (
                     <motion.span
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      className="f-mono text-xs text-cyan-400"
+                      className={`f-mono text-xs ${sent ? "text-cyan-400" : "text-rose-400"}`}
+                      aria-live="polite"
                     >
-                      ✓ Message sent — I&apos;ll be in touch!
+                      {submitMessage}
                     </motion.span>
                   )}
                 </div>
